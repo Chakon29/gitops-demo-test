@@ -23,9 +23,11 @@ spec:
         prometheus.io/port: "8080"
         prometheus.io/path: "/metrics"
     spec:
+      imagePullSecrets:
+      - name: ghcr-secret
       containers:
       - name: backend-api
-        image: ghcr.io/chakon29/gitops-demo-test:latest  # ArgoCD Image Updater actualizará esto
+        image: ghcr.io/chakon29/backend-go-api:latest  # ArgoCD Image Updater actualizará esto
         ports:
         - containerPort: 8080
           name: http
@@ -49,24 +51,12 @@ spec:
             port: 8080
           initialDelaySeconds: 30
           periodSeconds: 10
-          timeoutSeconds: 5
-          failureThreshold: 3
         readinessProbe:
           httpGet:
             path: /ready
             port: 8080
           initialDelaySeconds: 5
           periodSeconds: 5
-          timeoutSeconds: 3
-          failureThreshold: 3
-        startupProbe:
-          httpGet:
-            path: /health
-            port: 8080
-          initialDelaySeconds: 10
-          periodSeconds: 5
-          timeoutSeconds: 3
-          failureThreshold: 10
 ---
 apiVersion: v1
 kind: Service
