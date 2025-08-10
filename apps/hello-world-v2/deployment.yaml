@@ -1,0 +1,53 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hello-world-v2
+  namespace: demo-app
+  labels:
+    app: hello-world-v2
+    version: "2.0"
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: hello-world-v2
+  template:
+    metadata:
+      labels:
+        app: hello-world-v2
+        version: "2.0"
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/"
+    spec:
+      containers:
+      - name: hello-app
+        image: gcr.io/google-samples/hello-app:2.0
+        ports:
+        - containerPort: 8080
+          name: http
+        env:
+        - name: VERSION
+          value: "GitOps-v2.0-AUTO"
+        - name: MESSAGE
+          value: "Deployed via GitOps!"
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "50m"
+          limits:
+            memory: "128Mi"
+            cpu: "200m"
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 5
