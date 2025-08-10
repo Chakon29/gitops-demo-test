@@ -1,0 +1,33 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: nginx-demo-dev
+  namespace: argocd
+  labels:
+    environment: dev
+    app: nginx-demo
+spec:
+  project: default
+  
+  # SOURCE: Apunta a tu nueva estructura
+  source:
+    repoURL: https://github.com/Chakon29/gitops-demo-test
+    targetRevision: main
+    path: environments/dev/nginx-demo
+  
+  # DESTINATION: Donde se despliega
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: demo-app
+  
+  # SYNC POLICY: Automático para testing
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+    - CreateNamespace=true
+    
+  # HEALTH CHECKS
+  ignoreDifferences: []
+  revisionHistoryLimit: 10

@@ -1,30 +1,31 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: hello-world-v2-dev
+  name: backend-go-api-dev
   namespace: argocd
   labels:
     environment: dev
-    app: hello-world-v2
+    app: backend-go-api
+    tier: backend
 spec:
   project: default
   
-  # SOURCE: Apunta a tu nueva estructura
+  # SOURCE: Apunta a tu estructura para backend
   source:
     repoURL: https://github.com/Chakon29/gitops-demo-test
     targetRevision: main
-    path: environments/dev/hello-world-v2
+    path: environments/dev/backend-go-api
   
   # DESTINATION: Donde se despliega
   destination:
     server: https://kubernetes.default.svc
     namespace: demo-app
   
-  # SYNC POLICY: Manual para control
+  # SYNC POLICY: Manual para control durante desarrollo
   syncPolicy:
-    automated:
-      prune: true
-      selfHeal: true
+    # automated:
+    #   prune: true
+    #   selfHeal: true
     syncOptions:
     - CreateNamespace=true
     
