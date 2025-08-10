@@ -5,3 +5,4 @@ gcloud compute firewall-rules create gitops-stack-complete \
     --target-tags gitops-stack \
     --description="GitOps complete stack - ArgoCD, Prometheus, Grafana, K8s API, and scalable NodePorts" \
     --priority 1000
+    
