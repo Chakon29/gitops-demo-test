@@ -1,87 +1,32 @@
-apiVersion: apps/v1
-kind: Deployment
+apiVersion: argoproj.io/v1alpha1
+kind: Application
 metadata:
-  name: backend-go-api
-  namespace: demo-app
+  name: backend-go-api-dev
+  namespace: argocd
   labels:
+    environment: dev
     app: backend-go-api
     tier: backend
-    version: "1.0.0"
+  # --- CORRECCIÓN 3: ANOTACIONES PARA IMAGE UPDATER ---
+  # Le dice a ArgoCD Image Updater qué imagen vigilar y cómo actualizarla.
+  annotations:
+    argocd-image-updater.argoproj.io/image-list: backend-container=ghcr.io/chakon29/backend-go-api
+    argocd-image-updater.argoproj.io/backend-container.update-strategy: latest
+    # Opcional pero recomendado: Escribe los cambios de tag de vuelta a Git.
+    # Necesitarías configurar credenciales de Git en ArgoCD para que esto funcione.
+    # argocd-image-updater.argoproj.io/write-back-method: git:secret:argocd/git-creds
 spec:
-  replicas: 3
-  selector:
-    matchLabels:
-      app: backend-go-api
-  template:
-    metadata:
-      labels:
-        app: backend-go-api
-        tier: backend
-        version: "1.0.0"
-      annotations:
-        prometheus.io/scrape: "true"
-        prometheus.io/port: "8080"
-        prometheus.io/path: "/metrics"
-    spec:
-      containers:
-      - name: backend-api
-        image: ghcr.io/chakon29/gitops-demo-test:latest  # ArgoCD Image Updater actualizará esto
-        ports:
-        - containerPort: 8080
-          name: http
-        env:
-        - name: PORT
-          value: "8080"
-        - name: VERSION
-          value: "GitOps-v1.0.0-AUTO"
-        - name: ENV
-          value: "development"
-        resources:
-          requests:
-            memory: "128Mi"
-            cpu: "100m"
-          limits:
-            memory: "256Mi"
-            cpu: "300m"
-        livenessProbe:
-          httpGet:
-            path: /health
-            port: 8080
-          initialDelaySeconds: 30
-          periodSeconds: 10
-          timeoutSeconds: 5
-          failureThreshold: 3
-        readinessProbe:
-          httpGet:
-            path: /ready
-            port: 8080
-          initialDelaySeconds: 5
-          periodSeconds: 5
-          timeoutSeconds: 3
-          failureThreshold: 3
-        startupProbe:
-          httpGet:
-            path: /health
-            port: 8080
-          initialDelaySeconds: 10
-          periodSeconds: 5
-          timeoutSeconds: 3
-          failureThreshold: 10
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: backend-go-api-service
-  namespace: demo-app
-  labels:
-    app: backend-go-api
-    tier: backend
-spec:
-  type: NodePort
-  ports:
-  - port: 8080
-    targetPort: 8080
-    nodePort: 30203
-    name: http
-  selector:
-    app: backend-go-api
+  project: default
+  source:
+    repoURL: https://github.com/Chakon29/gitops-demo-test
+    targetRevision: main
+    path: environments/dev/backend-go-api
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: demo-app
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+    - CreateNamespace=true
