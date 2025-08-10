@@ -14,5 +14,9 @@ cp /etc/rancher/k3s/k3s.yaml ~/.kube/config
 chown $USER:$USER ~/.kube/config
 chmod 600 ~/.kube/config
 
+
+
 echo "k3s instalado correctamente"
 echo "Test: kubectl get nodes"
+echo "Para crear un namespace demo"
+echo "kubectl create namespace demo-app"

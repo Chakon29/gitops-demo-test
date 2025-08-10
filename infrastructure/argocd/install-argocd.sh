@@ -18,4 +18,4 @@ kubectl patch svc argocd-server -n argocd -p '{"spec":{"type":"NodePort","ports"
 echo "Password inicial:"
 kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d && echo
 
-echo "ArgoCD disponible en puerto 30080"
+echo "ArgoCD URL: http://$(curl -s ifconfig.me):30080"

@@ -1,62 +1,18 @@
 #!/bin/bash
 
-echo "Bootstrap VM para GitOps completo..."
-
-# System update
-echo "Actualizando sistema..."
-apt update && apt upgrade -y
-
-# Instalar dependencias
-echo "Instalando dependencias..."
-apt install -y gnupg lsb-release ca-certificates curl
-
-# Docker via snap
-echo "Instalando Docker..."
-snap install docker
-groupadd docker 2>/dev/null || true
-usermod -aG docker $USER
-
-# kubectl
-echo "Instalando kubectl..."
-curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
-
-# Helm
-echo "Instalando Helm..."
-snap install helm --classic
-
-# k3s
-echo "Instalando k3s..."
-curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="--disable traefik --disable servicelb --disable metrics-server --disable local-storage --write-kubeconfig-mode 644" sh -
-
-# Configurar kubeconfig
-mkdir -p ~/.kube
-cp /etc/rancher/k3s/k3s.yaml ~/.kube/config
-chown $USER:$USER ~/.kube/config
-
-# Esperar a que k3s este listo
-echo "Esperando k3s..."
-sleep 30
-kubectl wait --for=condition=ready node --all --timeout=60s
-
-# Instalar ArgoCD
-echo "Instalando ArgoCD..."
-kubectl create namespace argocd
-kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
-
-echo "Esperando ArgoCD..."
-kubectl wait --for=condition=available --timeout=300s deployment/argocd-server -n argocd
-
-# Configurar NodePort ArgoCD
-kubectl patch svc argocd-server -n argocd -p '{"spec":{"type":"NodePort","ports":[{"port":80,"nodePort":30080,"name":"http"}]}}'
-
-# Instalar Prometheus
 echo "Instalando Prometheus..."
 
-# Crear namespace monitoring
-kubectl create namespace monitoring
+# Verificar que kubectl funciona
+if ! kubectl cluster-info &> /dev/null; then
+    echo "Error: kubectl no configurado correctamente"
+    exit 1
+fi
 
-# RBAC Prometheus
+# Crear namespace
+kubectl create namespace monitoring --dry-run=client -o yaml | kubectl apply -f -
+
+# Instalar RBAC
+echo "Configurando RBAC..."
 kubectl apply -f - <<EOF
 apiVersion: v1
 kind: ServiceAccount
@@ -100,6 +56,7 @@ subjects:
 EOF
 
 # Configuracion Prometheus
+echo "Aplicando configuracion..."
 kubectl apply -f - <<EOF
 apiVersion: v1
 kind: ConfigMap
@@ -159,12 +116,15 @@ data:
 EOF
 
 # Deployment Prometheus
+echo "Desplegando Prometheus..."
 kubectl apply -f - <<EOF
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: prometheus
   namespace: monitoring
+  labels:
+    app: prometheus
 spec:
   replicas: 1
   selector:
@@ -181,17 +141,7 @@ spec:
         image: prom/prometheus:latest
         ports:
         - containerPort: 9090
-        args:
-        - '--config.file=/etc/prometheus/prometheus.yml'
-        - '--storage.tsdb.path=/prometheus/'
-        - '--storage.tsdb.retention.time=12h'
-        - '--web.enable-lifecycle'
-        volumeMounts:
-        - name: config
-          mountPath: /etc/prometheus/prometheus.yml
-          subPath: prometheus.yml
-        - name: storage
-          mountPath: /prometheus/
+          name: web
         resources:
           requests:
             memory: "256Mi"
@@ -199,21 +149,37 @@ spec:
           limits:
             memory: "512Mi"
             cpu: "300m"
+        args:
+        - '--config.file=/etc/prometheus/prometheus.yml'
+        - '--storage.tsdb.path=/prometheus/'
+        - '--web.console.libraries=/etc/prometheus/console_libraries'
+        - '--web.console.templates=/etc/prometheus/consoles'
+        - '--storage.tsdb.retention.time=12h'
+        - '--web.enable-lifecycle'
+        - '--web.enable-admin-api'
+        volumeMounts:
+        - name: prometheus-config
+          mountPath: /etc/prometheus/prometheus.yml
+          subPath: prometheus.yml
+        - name: prometheus-storage
+          mountPath: /prometheus/
         livenessProbe:
           httpGet:
             path: /-/healthy
             port: 9090
           initialDelaySeconds: 30
+          periodSeconds: 10
         readinessProbe:
           httpGet:
             path: /-/ready
             port: 9090
           initialDelaySeconds: 5
+          periodSeconds: 5
       volumes:
-      - name: config
+      - name: prometheus-config
         configMap:
           name: prometheus-config
-      - name: storage
+      - name: prometheus-storage
         emptyDir: {}
 ---
 apiVersion: v1
@@ -221,38 +187,30 @@ kind: Service
 metadata:
   name: prometheus
   namespace: monitoring
+  labels:
+    app: prometheus
 spec:
   type: NodePort
   ports:
   - port: 9090
+    targetPort: 9090
     nodePort: 30900
+    name: web
   selector:
     app: prometheus
 EOF
 
+# Esperar que este listo
 echo "Esperando Prometheus..."
 kubectl wait --for=condition=available --timeout=300s deployment/prometheus -n monitoring
 
-# Crear namespace demo-app
-kubectl create namespace demo-app
-
-# Mostrar informacion final
-EXTERNAL_IP=$(curl -s ifconfig.me)
-ARGOCD_PASSWORD=$(kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d)
-
-echo ""
-echo "GitOps stack instalado completamente"
-echo ""
-echo "URLs de acceso:"
-echo "  ArgoCD UI: http://${EXTERNAL_IP}:30080"
-echo "  Prometheus: http://${EXTERNAL_IP}:30900"
-echo ""
-echo "Credenciales ArgoCD:"
-echo "  Usuario: admin"
-echo "  Password: ${ARGOCD_PASSWORD}"
-echo ""
-echo "Verificacion:"
-echo "  kubectl get pods --all-namespaces"
-echo "  kubectl get svc --all-namespaces | grep NodePort"
-echo ""
-echo "Siguiente: Desplegar aplicaciones en namespace demo-app"
+# Verificar instalacion
+if kubectl get pods -n monitoring | grep prometheus | grep Running > /dev/null; then
+    echo "Prometheus instalado correctamente"
+    echo "Prometheus URL: http://$(curl -s ifconfig.me):30900"
+    echo "Targets URL: http://$(curl -s ifconfig.me):30900/targets"
+else
+    echo "Error en instalacion de Prometheus"
+    kubectl logs -n monitoring deployment/prometheus --tail=20
+    exit 1
+fi
