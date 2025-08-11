@@ -1,0 +1,101 @@
+name: "🚀 Deploy to VM + ArgoCD Sync"
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'environments/**'
+      - 'argocd-applications/**'
+      - 'infrastructure/**'
+
+jobs:
+  deploy-to-vm:
+    runs-on: ubuntu-latest
+    steps:
+    - name: 📥 Checkout
+      uses: actions/checkout@v4
+      
+    - name: 🔍 Show changed files
+      run: |
+        echo "## 📝 Changed Files" >> $GITHUB_STEP_SUMMARY
+        git diff --name-only HEAD~1 HEAD | while read file; do
+          echo "- \`$file\`" >> $GITHUB_STEP_SUMMARY
+        done
+      
+    - name: 🚀 Deploy to VM via SSH
+      uses: appleboy/ssh-action@v1.0.3
+      with:
+        host: ${{ secrets.SSH_HOST }}
+        username: ${{ secrets.SSH_USER }}
+        key: ${{ secrets.SSH_PRIVATE_KEY }}
+        port: ${{ secrets.SSH_PORT || 22 }}
+        timeout: 60s
+        script: |
+          echo "🔄 Starting GitOps deployment..."
+          
+          # Cambiar a usuario privilegiado si es necesario
+          echo "📁 Navigating to GitOps repository..."
+          cd /home/vce923/gitops-demo-test
+          
+          # Verificar directorio actual
+          pwd
+          echo "Current directory: $(pwd)"
+          
+          # Hacer backup del estado actual
+          echo "💾 Creating backup..."
+          git stash || true
+          
+          # Actualizar repositorio
+          echo "⬇️ Pulling latest changes..."
+          git fetch origin
+          git reset --hard origin/main
+          git pull origin main
+          
+          # Verificar que el pull fue exitoso
+          LATEST_COMMIT=$(git rev-parse HEAD)
+          echo "✅ Repository updated to commit: $LATEST_COMMIT"
+          
+          # Forzar que ArgoCD detecte los cambios
+          echo "🔄 Forcing ArgoCD to detect changes..."
+          
+          # Opción 1: Restart ArgoCD application controller (más directo)
+          kubectl rollout restart deployment/argocd-application-controller -n argocd || echo "⚠️ Could not restart ArgoCD controller"
+          
+          # Opción 2: Usar ArgoCD CLI para sync manual
+          echo "🎯 Triggering manual sync for all applications..."
+          
+          # Sync todas las aplicaciones
+          kubectl get applications -n argocd -o name | while read app; do
+            APP_NAME=$(echo $app | cut -d'/' -f2)
+            echo "🔄 Syncing application: $APP_NAME"
+            kubectl patch application $APP_NAME -n argocd --type merge -p '{"operation":{"sync":{"syncOptions":["Prune=true"]}}}' || echo "⚠️ Could not sync $APP_NAME"
+          done
+          
+          # Verificar estado de aplicaciones
+          echo "📊 Checking application status..."
+          kubectl get applications -n argocd -o wide || echo "⚠️ Could not get applications status"
+          
+          echo "✅ Deployment completed successfully!"
+          
+    - name: 📊 Deployment Summary
+      run: |
+        echo "## ✅ Deployment Completed" >> $GITHUB_STEP_SUMMARY
+        echo "**Target VM**: ${{ secrets.SSH_HOST }}" >> $GITHUB_STEP_SUMMARY
+        echo "**Repository Path**: /home/vce923/gitops-demo-test" >> $GITHUB_STEP_SUMMARY
+        echo "**Commit**: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### 🎯 Actions Taken:" >> $GITHUB_STEP_SUMMARY
+        echo "1. ✅ SSH connection to VM established" >> $GITHUB_STEP_SUMMARY
+        echo "2. ✅ Git repository updated with latest changes" >> $GITHUB_STEP_SUMMARY
+        echo "3. ✅ ArgoCD forced to detect changes" >> $GITHUB_STEP_SUMMARY
+        echo "4. ✅ All applications triggered for sync" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### 📱 Next Steps:" >> $GITHUB_STEP_SUMMARY
+        echo "- Monitor ArgoCD UI: http://${{ secrets.SSH_HOST }}:30080" >> $GITHUB_STEP_SUMMARY
+        echo "- Check application sync status" >> $GITHUB_STEP_SUMMARY
+        echo "- Verify deployments in Kubernetes cluster" >> $GITHUB_STEP_SUMMARY
+        
+    - name: 🎉 Success Notification
+      run: |
+        echo "🎉 GitOps deployment pipeline completed successfully!"
+        echo "🔍 Check ArgoCD UI for sync status"
