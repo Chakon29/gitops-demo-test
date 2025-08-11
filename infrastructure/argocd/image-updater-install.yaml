@@ -74,6 +74,7 @@ spec:
         - name: argocd-image-updater
           image: ghcr.io/chakon29/argocd-image-updater:v0.12.2
           args:
+            - run
             - --interval=2m
             - --log-level=info
           volumeMounts:
