@@ -1,26 +1,27 @@
+# argocd-applications/backend-api-go-app.yaml
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
   name: backend-go-api-dev
   namespace: argocd
-  labels:
-    environment: dev
-    app: backend-go-api
-    tier: backend
-  # --- CORRECCIÓN 3: ANOTACIONES PARA IMAGE UPDATER ---
-  # Le dice a ArgoCD Image Updater qué imagen vigilar y cómo actualizarla.
   annotations:
-    argocd-image-updater.argoproj.io/image-list: backend-container=ghcr.io/chakon29/backend-go-api
-    argocd-image-updater.argoproj.io/backend-container.update-strategy: latest
-    # Opcional pero recomendado: Escribe los cambios de tag de vuelta a Git.
-    # Necesitarías configurar credenciales de Git en ArgoCD para que esto funcione.
-    # argocd-image-updater.argoproj.io/write-back-method: git:secret:argocd/git-creds
+    argocd-image-updater.argoproj.io/image-list: backend-api=ghcr.io/chakon29/backend-go-api
+    argocd-image-updater.argoproj.io/backend-api.update-strategy: latest
 spec:
   project: default
+
+  # --- LA CORRECCIÓN CLAVE ESTÁ AQUÍ ---
+  # Cambiamos la fuente para que sea de tipo 'kustomize' en lugar de un directorio simple.
   source:
     repoURL: https://github.com/Chakon29/gitops-demo-test
     targetRevision: main
-    path: environments/dev/backend-go-api
+    # Le decimos a ArgoCD que use Kustomize, apuntando al mismo directorio.
+    kustomize:
+      # Kustomize buscará automáticamente un archivo kustomization.yaml.
+      # Si no lo encuentra, tratará todos los .yaml del directorio como una base.
+      path: environments/dev/backend-go-api
+  # ------------------------------------
+
   destination:
     server: https://kubernetes.default.svc
     namespace: demo-app
