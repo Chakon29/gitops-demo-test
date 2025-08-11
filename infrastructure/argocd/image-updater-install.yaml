@@ -1,5 +1,4 @@
 ---
-# 1. Permisos
 apiVersion: v1
 kind: ServiceAccount
 metadata:
@@ -11,15 +10,15 @@ kind: ClusterRole
 metadata:
   name: argocd-image-updater
 rules:
-  - apiGroups: ["argoproj.io"]
-    resources: ["applications"]
-    verbs: ["get", "list", "watch", "update", "patch"]
-  - apiGroups: [""]
-    resources: ["secrets"]
-    verbs: ["get"]
-  - apiGroups: [""]
-    resources: ["events"]
-    verbs: ["create", "patch"]
+- apiGroups: ["argoproj.io"]
+  resources: ["applications"]
+  verbs: ["get", "list", "watch", "update", "patch"]
+- apiGroups: [""]
+  resources: ["secrets"]
+  verbs: ["get"]
+- apiGroups: [""]
+  resources: ["events"]
+  verbs: ["create", "patch"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -30,11 +29,10 @@ roleRef:
   kind: ClusterRole
   name: argocd-image-updater
 subjects:
-  - kind: ServiceAccount
-    name: argocd-image-updater
-    namespace: argocd
+- kind: ServiceAccount
+  name: argocd-image-updater
+  namespace: argocd
 ---
-# 2. Configuración
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -48,7 +46,6 @@ data:
       api_url: https://ghcr.io
       credentials: pullsecret:argocd/ghcr-secret
 ---
-# 3. Despliegue
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -65,19 +62,20 @@ spec:
         app.kubernetes.io/name: argocd-image-updater
     spec:
       serviceAccountName: argocd-image-updater
-      imagePullSecrets:
-        - name: ghcr-secret
       containers:
-        - name: argocd-image-updater
-          image: ghcr.io/chakon29/argocd-image-updater:v0.12.2
-          args:
-            - run
-            - --interval=2m
-            - --log-level=info
-          volumeMounts:
-            - name: argocd-image-updater-config
-              mountPath: /app/config
-      volumes:
+      - name: argocd-image-updater
+        # --- LA ÚNICA LÍNEA QUE CAMBIA ---
+        # Usamos una imagen pública y funcional desde Docker Hub
+        image: argoprojlabs/argocd-image-updater:v0.12.2
+        # ------------------------------------
+        args:
+        - run
+        - --interval=2m
+        - --log-level=info
+        volumeMounts:
         - name: argocd-image-updater-config
-          configMap:
-            name: argocd-image-updater-config
+          mountPath: /app/config
+      volumes:
+      - name: argocd-image-updater-config
+        configMap:
+          name: argocd-image-updater-config
