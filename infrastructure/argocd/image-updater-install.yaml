@@ -1,6 +1,5 @@
-
 ---
-# 1. Permissions: Service Account and Roles for the Image Updater
+# 1. Permisos
 apiVersion: v1
 kind: ServiceAccount
 metadata:
@@ -34,9 +33,8 @@ subjects:
   - kind: ServiceAccount
     name: argocd-image-updater
     namespace: argocd
-
 ---
-# 2. Configuration: The ConfigMap that tells the updater how to talk to GHCR
+# 2. Configuración
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -49,9 +47,8 @@ data:
       prefix: ghcr.io
       api_url: https://ghcr.io
       credentials: pullsecret:argocd/ghcr-secret
-
 ---
-# 3. The Deployment: This runs the actual Image Updater application
+# 3. Despliegue
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -80,8 +77,6 @@ spec:
           volumeMounts:
             - name: argocd-image-updater-config
               mountPath: /app/config
-      # --- CORRECCIÓN DE POSICIÓN ---
-      # 'volumes' debe estar al mismo nivel que 'containers'
       volumes:
         - name: argocd-image-updater-config
           configMap:
