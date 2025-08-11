@@ -8,7 +8,7 @@ metadata:
     tier: backend
     version: "1.0.0"
 spec:
-  replicas: 6
+  replicas: 3
   selector:
     matchLabels:
       app: backend-go-api
